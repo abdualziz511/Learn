@@ -68,7 +68,11 @@ $router->group('/api', function (Router $api) {
         $student->get('/grades', $handlerGrades);
         $student->get('/attendance', $handlerGrades);
 
-        // Add more student routes here later
+        $handlerExams = function(Request $req) { require __DIR__ . '/api/student/exams.php'; };
+        $student->get('/exams', $handlerExams);
+        $student->post('/exams/start', $handlerExams);
+        $student->get('/exams/{id}', $handlerExams);
+        $student->post('/exams/{id}', $handlerExams);
     }, [AuthMiddleware::class, new RoleMiddleware('student')]);
 
     // Parent Routes
@@ -138,6 +142,7 @@ $router->group('/api', function (Router $api) {
 
         $handlerReports = function(Request $req) { require __DIR__ . '/api/school-admin/reports.php'; };
         $admin->get('/reports/overview', $handlerReports);
+        $admin->get('/reports/ai-insights', $handlerReports);
 
         // Add more admin routes here later
     }, [AuthMiddleware::class, new RoleMiddleware('school_admin', 'super_admin')]);
@@ -180,7 +185,10 @@ $router->group('/api', function (Router $api) {
         $super->put('/classes/{id}', $handlerClasses);
         $super->delete('/classes/{id}', $handlerClasses);
 
-        // Add more super-admin routes here later
+        $handlerAI = function(Request $req) { require __DIR__ . '/api/super-admin/ai.php'; };
+        $super->get('/ai/settings', $handlerAI);
+        $super->put('/ai/settings', $handlerAI);
+        $super->post('/ai/{id}', $handlerAI);
     }, [AuthMiddleware::class, new RoleMiddleware('super_admin')]);
 
 });

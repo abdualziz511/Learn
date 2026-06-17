@@ -28,9 +28,12 @@ class StudentService
     {
         $student = $this->getStudentData($userId);
 
-        // Fetch AI Analysis (For now placeholder, later connected to AI Service)
+        // Fetch AI Analysis
         $aiAnalysis = $this->db->fetchOne(
-            "SELECT ai_analysis_summary FROM students WHERE id = ?", 
+            "SELECT risk_level, strong_subjects, weak_subjects, recommendations, generated_at 
+             FROM ai_analysis 
+             WHERE student_id = ? 
+             ORDER BY generated_at DESC LIMIT 1", 
             [$student['id']]
         );
 
@@ -49,7 +52,13 @@ class StudentService
                 'school_id' => $student['school_id'],
                 'class_id' => $student['class_id']
             ],
-            'ai_insights' => $aiAnalysis['ai_analysis_summary'] ? json_decode($aiAnalysis['ai_analysis_summary'], true) : null,
+            'ai_insights' => $aiAnalysis ? [
+                'risk_level' => $aiAnalysis['risk_level'],
+                'strong_subjects' => json_decode($aiAnalysis['strong_subjects'] ?? '[]', true),
+                'weak_subjects' => json_decode($aiAnalysis['weak_subjects'] ?? '[]', true),
+                'recommendations' => json_decode($aiAnalysis['recommendations'] ?? '[]', true),
+                'generated_at' => $aiAnalysis['generated_at']
+            ] : null,
             'upcoming_assignments' => $assignments
         ];
     }

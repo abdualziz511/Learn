@@ -26,6 +26,10 @@ switch ($method) {
         if (str_ends_with($type, '/overview')) {
             $data = $service->getOverview($schoolId);
             Response::success($data);
+        } elseif (str_ends_with($type, '/ai-insights')) {
+            $aiService = new \Services\AIService();
+            $data = $aiService->getSchoolInsights($schoolId);
+            Response::success($data);
         } else {
             Response::error('Report type not found', 404);
         }
