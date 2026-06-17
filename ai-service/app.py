@@ -4,6 +4,7 @@ import random
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
+
 # Security settings
 SECRET_KEY = os.environ.get("AI_SECRET_KEY", "internal-ai-secret")
 
