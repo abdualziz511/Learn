@@ -33,7 +33,9 @@ switch ($method) {
             'phone'        => 'string|max:30',
             'city'         => 'string|max:100',
             'founded_year' => 'integer|min:1900|max:2100',
-            'status'       => 'in:active,inactive,suspended'
+            'status'       => 'in:active,inactive,suspended',
+            'min_grade_id' => 'integer',
+            'max_grade_id' => 'integer'
         ]);
         $v->failAndRespond();
         
@@ -53,7 +55,9 @@ switch ($method) {
             'phone'        => 'string|max:30',
             'city'         => 'string|max:100',
             'founded_year' => 'integer|min:1900|max:2100',
-            'status'       => 'in:active,inactive,suspended'
+            'status'       => 'in:active,inactive,suspended',
+            'min_grade_id' => 'integer',
+            'max_grade_id' => 'integer'
         ]);
         $v->failAndRespond();
 

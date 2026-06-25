@@ -65,31 +65,53 @@ class StudentService
 
     public function getSubjects(int $userId): array
     {
-        $student = $this->getStudentData($userId);
+        $student = $this->db->fetchOne(
+            "SELECT s.class_id, cl.grade_level_id, s.school_id
+             FROM students s 
+             JOIN classes cl ON s.class_id = cl.id 
+             WHERE s.user_id = ?", 
+            [$userId]
+        );
+        
+        if (!$student) Response::forbidden('البيانات غير مكتملة');
 
-        // Subjects that are assigned to this student's class
+        $gradeId = (int)$student['grade_level_id'];
+        $classId = (int)$student['class_id'];
+        $schoolId = (int)$student['school_id'];
+
+        // Subjects relate to grade level ONLY
         return $this->db->fetchAll(
-            "SELECT DISTINCT s.id, s.name, s.icon, s.color, t.name as teacher_name
+            "SELECT DISTINCT s.id, s.name, s.name_en, s.icon, s.color, s.description, tu.name as teacher_name
              FROM subjects s
-             JOIN teacher_assignments ta ON ta.subject_id = s.id
-             JOIN teachers th ON ta.teacher_id = th.id
-             JOIN users t ON th.user_id = t.id
-             WHERE ta.class_id = ?",
-            [$student['class_id']]
+             LEFT JOIN teacher_assignments ta ON ta.subject_id = s.id AND ta.class_id = ?
+             LEFT JOIN teachers th ON ta.teacher_id = th.id
+             LEFT JOIN users tu ON th.user_id = tu.id
+             WHERE s.grade_level_id = ?
+             ORDER BY s.name ASC",
+            [(int)$classId, (int)$gradeId]
         );
     }
 
-    public function getSubjectContent(int $userId, int $subjectId): array
+    public function getSubjectContent(int $userId, int $subjectId, ?int $term = null): array
     {
-        $student = $this->getStudentData($userId);
+        $student = $this->db->fetchOne("SELECT school_id FROM students WHERE user_id = ?", [$userId]);
+        if (!$student) return [];
+        
+        $params = [(int)$subjectId, (int)$student['school_id']];
+        // Allow content from specific school OR central content (school_id = 1)
+        $where = "subject_id = ? AND (school_id = ? OR school_id = 1) AND target_role IN ('student', 'both') AND is_active = 1";
+        
+        if ($term && $term > 0) {
+            $where .= " AND term = ?";
+            $params[] = (int)$term;
+        }
 
-        // Curricula, summaries, etc.
         return $this->db->fetchAll(
             "SELECT id, title, description, type, file_path, file_size 
              FROM educational_content 
-             WHERE subject_id = ? AND school_id = ? AND target_role IN ('student', 'both') AND is_active = 1
+             WHERE {$where}
              ORDER BY created_at DESC",
-            [$subjectId, $student['school_id']]
+            $params
         );
     }
 
@@ -97,15 +119,53 @@ class StudentService
     {
         $student = $this->getStudentData($userId);
 
-        return $this->db->fetchAll(
-            "SELECT a.id, a.title, a.description, a.file_path, a.due_date, a.created_at, u.name as teacher_name
+        $assignments = $this->db->fetchAll(
+            "SELECT a.id, a.title, a.description, a.attachment, a.due_date as date, a.day_name, a.week_number, u.name as teacher_name
              FROM assignments a
              JOIN teachers t ON a.teacher_id = t.id
              JOIN users u ON t.user_id = u.id
              WHERE a.subject_id = ? AND a.class_id = ?
-             ORDER BY a.due_date DESC",
+             ORDER BY a.due_date ASC",
             [$subjectId, $student['class_id']]
         );
+
+        // Fetch attendance/signature records for these assignments
+        $attendanceRecords = $this->db->fetchAll(
+            "SELECT date, teacher_signed, parent_signed, homework_score, note
+             FROM attendance 
+             WHERE student_id = ? AND subject_id = ? AND MONTH(date) = MONTH(CURRENT_DATE)",
+            [$student['id'], $subjectId]
+        );
+
+        // Fetch monthly stats from attendance/grades table
+        $stats = $this->db->fetchOne(
+            "SELECT 
+                COUNT(*) as total_expected,
+                SUM(CASE WHEN teacher_signed = 1 THEN 1 ELSE 0 END) as executed_count
+             FROM attendance 
+             WHERE student_id = ? AND subject_id = ? AND MONTH(date) = MONTH(CURRENT_DATE)",
+            [$student['id'], $subjectId]
+        );
+
+        // Fetch monthly assignment grade
+        $grade = $this->db->fetchOne(
+            "SELECT score FROM grades 
+             WHERE student_id = ? AND subject_id = ? AND grade_type_id = (SELECT id FROM grade_types WHERE name LIKE '%واجب%' OR name LIKE '%homework%' LIMIT 1)
+             AND academic_year_id = 1 LIMIT 1",
+            [$student['id'], $subjectId]
+        );
+
+        return [
+            'assignments' => $assignments,
+            'attendance_records' => $attendanceRecords,
+            'stats' => [
+                'total_expected' => (int)($stats['total_expected'] ?? 0),
+                'executed_count' => (int)($stats['executed_count'] ?? 0),
+                'submitted_count' => (int)($stats['executed_count'] ?? 0),
+                'missed_count' => max(0, (int)($stats['total_expected'] ?? 0) - (int)($stats['executed_count'] ?? 0)),
+                'monthly_grade' => $grade ? $grade['score'] : '---'
+            ]
+        ];
     }
 
     public function getGrades(int $userId): array

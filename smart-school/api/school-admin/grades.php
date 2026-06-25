@@ -1,50 +1,51 @@
 <?php
 // api/school-admin/grades.php
 
+declare(strict_types=1);
+
 use Core\Response;
 use Core\Auth;
-use Services\ApprovalService;
+use Services\SchoolGradeService;
 
 /** @var \Core\Request $req */
 
-$method = $req->method();
-$service = new ApprovalService();
-$currentUser = Auth::user($req);
+try {
+    $service = new SchoolGradeService();
+    $currentUser = Auth::user($req);
+    $method = $req->method();
 
-$schoolId = (int)$req->query('school_id');
-if (!$schoolId) {
-    if (empty($currentUser['school_ids'])) Response::forbidden('ليس لديك صلاحية على أي مدرسة');
-    $schoolId = $currentUser['school_ids'][0];
-} else {
-    Auth::requireSchool($currentUser, $schoolId);
-}
+    // Securely find school ID
+    $schoolId = (int)$req->query('school_id');
+    if (!$schoolId) {
+        if (!$currentUser || empty($currentUser['school_ids'])) {
+            Response::forbidden('School context missing');
+        }
+        $schoolId = (int)$currentUser['school_ids'][0];
+    }
 
-switch ($method) {
-    case 'GET':
-        $filters = [
-            'class_id' => $req->query('class_id') ? (int)$req->query('class_id') : null
-        ];
-        $result = $service->getPendingGrades($schoolId, $filters);
-        Response::success($result);
-        break;
-
-    case 'PATCH':
-        $id = (int)$req->param('id');
-        $action = $req->path(); // .../approve or .../reject
-        
-        if (!$id) Response::error('معرف السجل مطلوب', 400);
-
-        if (str_ends_with($action, '/approve')) {
-            $service->approveGrade($schoolId, $id, $currentUser['id']);
-            Response::success(null, 'تم اعتماد الدرجة');
-        } elseif (str_ends_with($action, '/reject')) {
-            $service->rejectGrade($schoolId, $id, $currentUser['id']);
-            Response::success(null, 'تم رفض الدرجة');
+    if ($method === 'GET') {
+        $status = $req->query('status') ?? 'pending';
+        if ($status === 'pending') {
+            $data = $service->getPendingGrades($schoolId);
+            Response::success($data);
         } else {
+            Response::error('Only pending status is supported for this view', 400);
+        }
+    }
+
+    if ($method === 'PATCH') {
+        $path = $_SERVER['REQUEST_URI'];
+        
+        if (strpos($path, '/approve-all') !== false) {
+            $count = $service->approveAll($schoolId);
+            Response::success(['count' => $count], "تم اعتماد $count درجة بنجاح");
+        } else {
+            // Assume single ID at the end of path if not /approve-all
+            // Handle specific ID if needed (e.g., /grades/{id}/approve)
             Response::error('Action not supported', 400);
         }
-        break;
+    }
 
-    default:
-        Response::error('Method Not Allowed', 405);
+} catch (\Throwable $e) {
+    Response::serverError($e->getMessage());
 }

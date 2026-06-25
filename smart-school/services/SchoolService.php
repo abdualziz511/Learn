@@ -19,7 +19,7 @@ class SchoolService
 
     public function getAll(int $page = 1, int $perPage = 20): array
     {
-        $sql = "SELECT id, name, name_en, logo, city, phone, email, status, created_at 
+        $sql = "SELECT id, name, name_en, logo, city, phone, email, status, address, country, website, founded_year, min_grade_id, max_grade_id, created_at 
                 FROM schools 
                 ORDER BY id DESC";
         
@@ -61,10 +61,14 @@ class SchoolService
             'website'      => $data['website'] ?? null,
             'founded_year' => $data['founded_year'] ?? null,
             'status'       => $data['status'] ?? 'active',
+            'min_grade_id' => $data['min_grade_id'] ?? null,
+            'max_grade_id' => $data['max_grade_id'] ?? null,
             'settings'     => $data['settings']
         ]);
 
-        return $this->getById($id);
+        $newS = $this->getById($id);
+        \Services\AuditService::getInstance()->log('CREATE_SCHOOL', 'schools', $id, null, $newS);
+        return $newS;
     }
 
     public function update(int $id, array $data): array
@@ -79,7 +83,7 @@ class SchoolService
         }
 
         $updateData = [];
-        $fillable = ['name', 'name_en', 'address', 'city', 'country', 'phone', 'email', 'website', 'founded_year', 'status'];
+        $fillable = ['name', 'name_en', 'address', 'city', 'country', 'phone', 'email', 'website', 'founded_year', 'status', 'min_grade_id', 'max_grade_id'];
         
         foreach ($fillable as $field) {
             if (array_key_exists($field, $data)) {
@@ -91,12 +95,15 @@ class SchoolService
             $this->db->update('schools', $updateData, ['id' => $id]);
         }
 
-        return $this->getById($id);
+        $newS = $this->getById($id);
+        \Services\AuditService::getInstance()->log('UPDATE_SCHOOL', 'schools', $id, $school, $newS);
+        return $newS;
     }
 
     public function delete(int $id): void
     {
-        $this->getById($id); // ensure exists
+        $school = $this->getById($id); // ensure exists
         $this->db->delete('schools', ['id' => $id]);
+        \Services\AuditService::getInstance()->log('DELETE_SCHOOL', 'schools', $id, $school);
     }
 }

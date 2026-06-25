@@ -491,7 +491,7 @@ INSERT INTO `users` (`name`, `email`, `password_hash`, `role`, `is_active`)
 VALUES (
     'Super Admin',
     'admin@smartschool.com',
-    '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    '$2y$10$9r5qeJaTbZDRlr69JggWz.Cu0hCmTij4jsWENBkKKGmztO0ucrDTC',
     'super_admin',
     1
 ) ON DUPLICATE KEY UPDATE `name` = `name`;

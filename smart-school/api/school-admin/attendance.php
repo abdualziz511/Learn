@@ -1,51 +1,44 @@
 <?php
 // api/school-admin/attendance.php
 
+declare(strict_types=1);
+
 use Core\Response;
 use Core\Auth;
-use Services\ApprovalService;
+use Services\SchoolAttendanceService;
 
 /** @var \Core\Request $req */
 
-$method = $req->method();
-$service = new ApprovalService();
-$currentUser = Auth::user($req);
+try {
+    $service = new SchoolAttendanceService();
+    $currentUser = Auth::user($req);
+    $method = $req->method();
 
-$schoolId = (int)$req->query('school_id');
-if (!$schoolId) {
-    if (empty($currentUser['school_ids'])) Response::forbidden('ليس لديك صلاحية على أي مدرسة');
-    $schoolId = $currentUser['school_ids'][0];
-} else {
-    Auth::requireSchool($currentUser, $schoolId);
-}
+    // Securely find school ID
+    $schoolId = (int)$req->query('school_id');
+    if (!$schoolId) {
+        if (!$currentUser || empty($currentUser['school_ids'])) {
+            Response::forbidden('ليس لديك صلاحية على مدرسة محددة');
+        }
+        $schoolId = (int)$currentUser['school_ids'][0];
+    }
 
-switch ($method) {
-    case 'GET':
-        $filters = [
-            'date' => $req->query('date'),
-            'class_id' => $req->query('class_id') ? (int)$req->query('class_id') : null
-        ];
-        $result = $service->getPendingAttendance($schoolId, $filters);
-        Response::success($result);
-        break;
+    if ($method === 'GET') {
+        $date = $req->query('date') ?? date('Y-m-d');
+        $data = $service->getAttendance($schoolId, $date);
+        Response::success($data);
+    }
 
-    case 'PATCH':
+    if ($method === 'PATCH') {
         $id = (int)$req->param('id');
-        $action = $req->path(); // .../approve or .../reject
-        
-        if (!$id) Response::error('معرف السجل مطلوب', 400);
-
-        if (str_ends_with($action, '/approve')) {
-            $service->approveAttendance($schoolId, $id, $currentUser['id']);
-            Response::success(null, 'تم اعتماد الحضور');
-        } elseif (str_ends_with($action, '/reject')) {
-            $service->rejectAttendance($schoolId, $id, $currentUser['id']);
-            Response::success(null, 'تم رفض الحضور');
+        if (strpos($_SERVER['REQUEST_URI'], '/approve') !== false) {
+            $service->approveAttendance($schoolId, $id);
+            Response::success(null, 'تم اعتماد التحضير بنجاح');
         } else {
             Response::error('Action not supported', 400);
         }
-        break;
+    }
 
-    default:
-        Response::error('Method Not Allowed', 405);
+} catch (\Throwable $e) {
+    Response::serverError($e->getMessage());
 }

@@ -20,8 +20,8 @@ if (str_contains($path, '/grades')) {
     switch ($method) {
         case 'GET':
             $schoolId = (int)$req->query('school_id');
-            if (!$schoolId) Response::error('معرف المدرسة (school_id) مطلوب', 400);
-            Response::success($classService->getGrades($schoolId));
+            // If school_id is missing, we take the first available one or return everything
+            Response::success($classService->getGrades($schoolId ?: null));
             break;
 
         case 'POST':
@@ -32,6 +32,17 @@ if (str_contains($path, '/grades')) {
             ]);
             $v->failAndRespond();
             Response::created($classService->createGrade($v->validated()), 'تم إضافة المرحلة بنجاح');
+            break;
+
+        case 'PUT':
+            $id = (int)$req->param('id');
+            if (!$id) Response::error('معرف المرحلة مطلوب', 400);
+            $v = Validator::make($req->all(), [
+                'name'      => 'string|max:100',
+                'order_num' => 'integer'
+            ]);
+            $v->failAndRespond();
+            Response::success($classService->updateGrade($id, $v->validated()), 'تم تحديث المرحلة بنجاح');
             break;
 
         case 'DELETE':

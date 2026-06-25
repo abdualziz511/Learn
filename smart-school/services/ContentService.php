@@ -22,7 +22,7 @@ class ContentService
         $this->uploader = new FileUpload();
     }
 
-    public function getAll(int $subjectId, int $page = 1, int $perPage = 20, ?string $type = null): array
+    public function getAll(int $subjectId, int $page = 1, int $perPage = 20, ?string $type = null, ?int $term = null): array
     {
         $params = [$subjectId];
         $where = "subject_id = ?";
@@ -30,8 +30,12 @@ class ContentService
             $where .= " AND type = ?";
             $params[] = $type;
         }
+        if ($term !== null) {
+            $where .= " AND term = ?";
+            $params[] = $term;
+        }
 
-        $sql = "SELECT id, title, description, type, file_path, file_size, mime_type, target_role, uploaded_by, is_active, created_at 
+        $sql = "SELECT id, title, description, type, file_path, file_size, mime_type, target_role, uploaded_by, is_active, created_at, term 
                 FROM educational_content 
                 WHERE {$where} 
                 ORDER BY id DESC";
@@ -57,8 +61,14 @@ class ContentService
 
     public function create(array $data, ?array $file, Request $request): array
     {
-        // verify subject exists
-        $subject = $this->db->fetchOne("SELECT school_id FROM subjects WHERE id = ?", [$data['subject_id']]);
+        // verify subject exists and get its school_id via grade_level_id
+        $subject = $this->db->fetchOne(
+            "SELECT gl.school_id 
+             FROM subjects s 
+             JOIN grade_levels gl ON s.grade_level_id = gl.id 
+             WHERE s.id = ?", 
+            [$data['subject_id']]
+        );
         if (!$subject) {
             Response::validationError(['subject_id' => ['المادة الدراسية غير موجودة']]);
         }
@@ -94,6 +104,7 @@ class ContentService
             'title'       => $data['title'],
             'description' => $data['description'] ?? null,
             'type'        => $data['type'],
+            'term'        => $data['term'] ?? 1,
             'file_path'   => $filePath,
             'file_size'   => $fileSize,
             'mime_type'   => $mimeType,

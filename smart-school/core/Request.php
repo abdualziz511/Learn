@@ -39,6 +39,17 @@ class Request
         if (isset($_SERVER['CONTENT_TYPE'])) {
             $this->headers['content-type'] = $_SERVER['CONTENT_TYPE'];
         }
+
+        // Fix for Apache stripping Authorization header
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] 
+                   ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] 
+                   ?? $_SERVER['AUTHORIZATION'] 
+                   ?? null;
+
+        if ($authHeader) {
+            $this->headers['authorization'] = $authHeader;
+        }
+
         if (isset($_SERVER['PHP_AUTH_BEARER'])) {
             $this->headers['authorization'] = 'Bearer ' . $_SERVER['PHP_AUTH_BEARER'];
         }
@@ -56,16 +67,23 @@ class Request
     {
         $uri  = $_SERVER['REQUEST_URI'] ?? '/';
         $path = parse_url($uri, PHP_URL_PATH);
-        return rtrim($path ?: '/', '/') ?: '/';
+        
+        // Handle subdirectory installations (like /Learn/smart-school/)
+        $scriptPath = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+        if ($scriptPath !== '/' && str_starts_with($path, $scriptPath)) {
+            $path = substr($path, strlen($scriptPath));
+        }
+
+        return '/' . ltrim($path, '/');
     }
 
-    public function body(string $key = null, mixed $default = null): mixed
+    public function body(?string $key = null, mixed $default = null): mixed
     {
         if ($key === null) return $this->body;
         return $this->body[$key] ?? $default;
     }
 
-    public function query(string $key = null, mixed $default = null): mixed
+    public function query(?string $key = null, mixed $default = null): mixed
     {
         if ($key === null) return $this->query;
         return $this->query[$key] ?? $default;

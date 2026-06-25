@@ -17,10 +17,24 @@ class SubjectService
         $this->db = Database::getInstance();
     }
 
-    public function getAll(int $schoolId, int $page = 1, int $perPage = 20): array
+    public function getAll(int $schoolId, int $page = 1, int $perPage = 20, ?int $gradeId = null): array
     {
-        $sql = "SELECT * FROM subjects WHERE school_id = ? ORDER BY id DESC";
-        return $this->db->paginate($sql, [$schoolId], $page, $perPage);
+        $params = [$schoolId];
+        // Allow fetching subjects from the specific school OR central subjects (school 1)
+        $where = "(gl.school_id = ? OR gl.school_id = 1)";
+        
+        if ($gradeId) {
+            $where .= " AND s.grade_level_id = ?";
+            $params[] = $gradeId;
+        }
+
+        $sql = "SELECT s.*, gl.name as grade_name 
+                FROM subjects s
+                JOIN grade_levels gl ON s.grade_level_id = gl.id
+                WHERE {$where} 
+                ORDER BY gl.order_num ASC, s.name ASC";
+                
+        return $this->db->paginate($sql, $params, $page, $perPage);
     }
 
     public function getById(int $id): array
@@ -34,23 +48,19 @@ class SubjectService
 
     public function create(array $data): array
     {
-        // verify school exists
-        $school = $this->db->fetchOne("SELECT id FROM schools WHERE id = ?", [$data['school_id']]);
-        if (!$school) {
-            Response::validationError(['school_id' => ['المدرسة المحددة غير موجودة']]);
-        }
-
         $id = $this->db->insert('subjects', [
-            'school_id'   => $data['school_id'],
-            'name'        => $data['name'],
-            'name_en'     => $data['name_en'] ?? null,
-            'code'        => $data['code'] ?? null,
-            'description' => $data['description'] ?? null,
-            'icon'        => $data['icon'] ?? null,
-            'color'       => $data['color'] ?? null
+            'grade_level_id' => $data['grade_level_id'],
+            'name'           => $data['name'],
+            'name_en'        => $data['name_en'] ?? null,
+            'code'           => $data['code'] ?? null,
+            'description'    => $data['description'] ?? null,
+            'icon'           => $data['icon'] ?? null,
+            'color'          => $data['color'] ?? null
         ]);
 
-        return $this->getById($id);
+        $newRel = $this->getById($id);
+        \Services\AuditService::getInstance()->log('CREATE_SUBJECT', 'subjects', $id, null, $newRel);
+        return $newRel;
     }
 
     public function update(int $id, array $data): array
@@ -58,7 +68,7 @@ class SubjectService
         $subject = $this->getById($id);
 
         $updateData = [];
-        $fillable = ['name', 'name_en', 'code', 'description', 'icon', 'color'];
+        $fillable = ['name', 'name_en', 'code', 'description', 'icon', 'color', 'grade_level_id', 'term'];
         
         foreach ($fillable as $field) {
             if (array_key_exists($field, $data)) {
@@ -70,12 +80,15 @@ class SubjectService
             $this->db->update('subjects', $updateData, ['id' => $id]);
         }
 
-        return $this->getById($id);
+        $newSubject = $this->getById($id);
+        \Services\AuditService::getInstance()->log('UPDATE_SUBJECT', 'subjects', $id, $subject, $newSubject);
+        return $newSubject;
     }
 
     public function delete(int $id): void
     {
-        $this->getById($id);
+        $subject = $this->getById($id);
         $this->db->delete('subjects', ['id' => $id]);
+        \Services\AuditService::getInstance()->log('DELETE_SUBJECT', 'subjects', $id, $subject);
     }
 }

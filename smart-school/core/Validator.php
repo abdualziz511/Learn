@@ -35,8 +35,18 @@ class Validator
             $ruleList = explode('|', $ruleStr);
             $value    = $this->data[$field] ?? null;
 
+            $isNullable = in_array('nullable', $ruleList);
+            $isRequired = in_array('required', $ruleList);
+
+            // Skip validation if value is empty and (not required OR is nullable)
+            if (($value === null || $value === '') && !$isRequired) {
+                continue;
+            }
+
             foreach ($ruleList as $rule) {
                 [$ruleName, $param] = array_pad(explode(':', $rule, 2), 2, null);
+
+                if ($ruleName === 'nullable') continue;
 
                 $pass = match ($ruleName) {
                     'required'  => $this->ruleRequired($value),
@@ -142,7 +152,12 @@ class Validator
     public function validated(): array
     {
         return array_map(
-            fn($v) => is_string($v) ? self::sanitizeString($v) : $v,
+            function($v) {
+                if ($v === null) return null;
+                if (!is_string($v)) return $v;
+                $cleaned = self::sanitizeString($v);
+                return $cleaned === '' ? null : $cleaned;
+            },
             $this->data
         );
     }

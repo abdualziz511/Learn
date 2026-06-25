@@ -1,0 +1,10 @@
+# storage/.htaccess
+<IfModule mod_headers.c>
+    Header unset X-Frame-Options
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+Options +Indexes
+RewriteEngine Off

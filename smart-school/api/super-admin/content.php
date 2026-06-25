@@ -23,8 +23,9 @@ switch ($method) {
             $page = $req->page();
             $perPage = $req->perPage();
             $type = $req->query('type');
+            $term = $req->query('term') !== null ? (int)$req->query('term') : null;
             
-            $result = $contentService->getAll($subjectId, $page, $perPage, $type);
+            $result = $contentService->getAll($subjectId, $page, $perPage, $type, $term);
             Response::paginated($result);
         }
         break;
@@ -35,6 +36,7 @@ switch ($method) {
             'title'       => 'required|string|max:300',
             'description' => 'string',
             'type'        => 'required|in:curriculum,summary,reference,book,presentation,video,other',
+            'term'        => 'integer|in:1,2',
             'target_role' => 'in:student,teacher,both',
             'is_active'   => 'boolean'
         ]);

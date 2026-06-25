@@ -17,6 +17,43 @@ class TeacherDashboardService
         $this->db = Database::getInstance();
     }
 
+    public function getTeacherStats(int $userId): array
+    {
+        $teacherId = $this->getTeacherId($userId);
+        
+        $schoolsCount = $this->db->fetchOne("SELECT COUNT(DISTINCT school_id) as count FROM teacher_assignments WHERE teacher_id = ?", [$teacherId]);
+        $classesCount = $this->db->fetchOne("SELECT COUNT(DISTINCT class_id) as count FROM teacher_assignments WHERE teacher_id = ?", [$teacherId]);
+        $subjectsCount = $this->db->fetchOne("SELECT COUNT(DISTINCT subject_id) as count FROM teacher_assignments WHERE teacher_id = ?", [$teacherId]);
+        $studentsCount = $this->db->fetchOne("SELECT COUNT(DISTINCT st.id) as count 
+                                                       FROM students st
+                                                       JOIN teacher_assignments ta ON st.class_id = ta.class_id
+                                                       WHERE ta.teacher_id = ?", [$teacherId]);
+        $userName = $this->db->fetchOne("SELECT name FROM users WHERE id = ?", [$userId]);
+
+        return [
+            'schools_count'  => (int)($schoolsCount['count'] ?? 0),
+            'classes_count'  => (int)($classesCount['count'] ?? 0),
+            'subjects_count' => (int)($subjectsCount['count'] ?? 0),
+            'students_count' => (int)($studentsCount['count'] ?? 0),
+            'teacher_name'   => $userName['name'] ?? 'معلم'
+        ];
+    }
+
+    public function getAssignedSchedule(int $userId): array
+    {
+        $teacherId = $this->getTeacherId($userId);
+        $sql = "SELECT ta.id, ta.school_id, ta.class_id, ta.subject_id, 
+                       c.name as class_name, g.name as grade_name, s.name as subject_name, sc.name as school_name, s.color
+                FROM teacher_assignments ta
+                JOIN classes c ON ta.class_id = c.id
+                JOIN grade_levels g ON c.grade_level_id = g.id
+                JOIN subjects s ON ta.subject_id = s.id
+                JOIN schools sc ON ta.school_id = sc.id
+                WHERE ta.teacher_id = ?
+                ORDER BY sc.name, g.order_num";
+        return $this->db->fetchAll($sql, [$teacherId]);
+    }
+
     private function getTeacherId(int $userId): int
     {
         $teacher = $this->db->fetchOne("SELECT id FROM teachers WHERE user_id = ?", [$userId]);
@@ -32,6 +69,25 @@ class TeacherDashboardService
                 JOIN teacher_assignments ta ON ta.school_id = s.id
                 WHERE ta.teacher_id = ?";
         return $this->db->fetchAll($sql, [$teacherId]);
+    }
+
+    public function getMeta(int $userId, int $schoolId): array
+    {
+        $teacherId = $this->getTeacherId($userId);
+        
+        $classes = $this->getClasses($userId, $schoolId);
+        
+        // Get all unique subjects for this teacher in this school
+        $sql = "SELECT DISTINCT s.id, s.name, s.color, s.icon
+                FROM subjects s
+                JOIN teacher_assignments ta ON ta.subject_id = s.id
+                WHERE ta.teacher_id = ? AND ta.school_id = ?";
+        $subjects = $this->db->fetchAll($sql, [$teacherId, $schoolId]);
+
+        return [
+            'classes'  => $classes,
+            'subjects' => $subjects
+        ];
     }
 
     public function getClasses(int $userId, int $schoolId): array
@@ -62,10 +118,10 @@ class TeacherDashboardService
         return $this->db->fetchAll($sql, [$teacherId, $schoolId, $classId]);
     }
 
-    public function getStudents(int $userId, int $schoolId, int $classId): array
+    public function getStudents(int $userId, int $schoolId, int $classId, ?int $subjectId = null): array
     {
         $teacherId = $this->getTeacherId($userId);
-        $this->verifyAssignment($teacherId, $schoolId, $classId);
+        $this->verifyAssignment($teacherId, $schoolId, $classId, $subjectId);
 
         $sql = "SELECT st.id, st.student_code, u.name, u.avatar
                 FROM students st
@@ -75,11 +131,15 @@ class TeacherDashboardService
         return $this->db->fetchAll($sql, [$schoolId, $classId]);
     }
 
-    private function verifyAssignment(int $teacherId, int $schoolId, ?int $classId = null, ?int $subjectId = null): void
+    private function verifyAssignment(int $teacherId, ?int $schoolId = null, ?int $classId = null, ?int $subjectId = null): void
     {
-        $params = [$teacherId, $schoolId];
-        $where = "teacher_id = ? AND school_id = ?";
+        $params = [$teacherId];
+        $where = "teacher_id = ?";
 
+        if ($schoolId && $schoolId > 0) {
+            $where .= " AND school_id = ?";
+            $params[] = $schoolId;
+        }
         if ($classId) {
             $where .= " AND class_id = ?";
             $params[] = $classId;

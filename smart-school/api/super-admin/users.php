@@ -57,7 +57,8 @@ switch ($method) {
             'phone'     => 'string|max:30',
             'password'  => 'string|min:6',
             'role'      => 'in:super_admin,school_admin,teacher,student,parent',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'school_id' => 'integer'
         ]);
         $v->failAndRespond();
 

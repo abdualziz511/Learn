@@ -17,30 +17,33 @@ switch ($method) {
             $subject = $subjectService->getById((int)$id);
             Response::success($subject);
         } else {
-            $schoolId = (int)$req->query('school_id');
-            if (!$schoolId) Response::error('معرف المدرسة (school_id) مطلوب', 400);
+            $schoolId = (int)$req->query('school_id') ?: 1; // Default to central
+            $gradeId = $req->query('grade_id') ? (int)$req->query('grade_id') : null;
+            $term = $req->query('term') !== null ? (int)$req->query('term') : null;
 
             $page = $req->page();
             $perPage = $req->perPage();
             
-            $result = $subjectService->getAll($schoolId, $page, $perPage);
+            $result = $subjectService->getAll($schoolId, $page, $perPage, $gradeId, $term);
             Response::paginated($result);
         }
         break;
 
     case 'POST':
         $v = Validator::make($req->all(), [
-            'school_id'   => 'required|integer',
-            'name'        => 'required|string|max:150',
-            'name_en'     => 'string|max:150',
-            'code'        => 'string|max:20',
-            'description' => 'string',
-            'icon'        => 'string|max:100',
-            'color'       => 'string|max:10'
+            'school_id'      => 'integer',
+            'grade_level_id' => 'integer',
+            'term'           => 'integer',
+            'name'           => 'required|string|max:150',
+            'name_en'        => 'string|max:150',
+            'code'           => 'string|max:20'
         ]);
         $v->failAndRespond();
         
-        $subject = $subjectService->create($v->validated());
+        $data = $v->validated();
+        if (!isset($data['school_id'])) $data['school_id'] = 1;
+
+        $subject = $subjectService->create($data);
         Response::created($subject, 'تم إضافة المادة بنجاح');
         break;
 
@@ -49,12 +52,11 @@ switch ($method) {
         if (!$id) Response::error('معرف المادة مطلوب', 400);
 
         $v = Validator::make($req->all(), [
-            'name'        => 'string|max:150',
-            'name_en'     => 'string|max:150',
-            'code'        => 'string|max:20',
-            'description' => 'string',
-            'icon'        => 'string|max:100',
-            'color'       => 'string|max:10'
+            'name'           => 'string|max:150',
+            'grade_level_id' => 'integer',
+            'term'           => 'integer',
+            'name_en'        => 'string|max:150',
+            'code'           => 'string|max:20'
         ]);
         $v->failAndRespond();
 

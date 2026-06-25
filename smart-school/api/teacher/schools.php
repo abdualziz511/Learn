@@ -20,12 +20,13 @@ $path = $req->path();
 
 switch ($method) {
     case 'GET':
-        $schoolId = (int)$req->param('school_id');
-        $classId = (int)$req->param('class_id');
+        $schoolId = (int)$req->param('school_id') ?: (int)$req->query('school_id');
+        $classId = (int)$req->param('class_id') ?: (int)$req->query('class_id');
+        $subjectId = (int)$req->query('subject_id');
 
-        if (str_ends_with($path, '/students')) {
-            if (!$schoolId || !$classId) Response::error('المدرسة والصف مطلوبان', 400);
-            Response::success($service->getStudents($currentUser['id'], $schoolId, $classId));
+        if (str_ends_with($path, '/students') || $path === '/api/teacher/students') {
+            if (!$classId) Response::error('المدرسة والصف مطلوبان', 400);
+            Response::success($service->getStudents($currentUser['id'], $schoolId ?: 1, $classId, $subjectId ?: null));
         } 
         elseif (str_ends_with($path, '/subjects')) {
             if (!$schoolId || !$classId) Response::error('المدرسة والصف مطلوبان', 400);

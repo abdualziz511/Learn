@@ -15,38 +15,38 @@ class Router
     // -------------------------------------------------------
     // Route Registration
     // -------------------------------------------------------
-    public function get(string $path, callable $handler): self
+    public function get(string $path, callable $handler, array $middleware = []): self
     {
-        return $this->addRoute('GET', $path, $handler);
+        return $this->addRoute('GET', $path, $handler, $middleware);
     }
 
-    public function post(string $path, callable $handler): self
+    public function post(string $path, callable $handler, array $middleware = []): self
     {
-        return $this->addRoute('POST', $path, $handler);
+        return $this->addRoute('POST', $path, $handler, $middleware);
     }
 
-    public function put(string $path, callable $handler): self
+    public function put(string $path, callable $handler, array $middleware = []): self
     {
-        return $this->addRoute('PUT', $path, $handler);
+        return $this->addRoute('PUT', $path, $handler, $middleware);
     }
 
-    public function patch(string $path, callable $handler): self
+    public function patch(string $path, callable $handler, array $middleware = []): self
     {
-        return $this->addRoute('PATCH', $path, $handler);
+        return $this->addRoute('PATCH', $path, $handler, $middleware);
     }
 
-    public function delete(string $path, callable $handler): self
+    public function delete(string $path, callable $handler, array $middleware = []): self
     {
-        return $this->addRoute('DELETE', $path, $handler);
+        return $this->addRoute('DELETE', $path, $handler, $middleware);
     }
 
-    private function addRoute(string $method, string $path, callable $handler): self
+    private function addRoute(string $method, string $path, callable $handler, array $middleware = []): self
     {
         $this->routes[] = [
             'method'     => $method,
             'path'       => $this->prefix . $path,
             'handler'    => $handler,
-            'middleware' => $this->middleware,
+            'middleware' => array_merge($this->middleware, $middleware),
         ];
         return $this;
     }
@@ -93,7 +93,12 @@ class Router
 
             // Run middleware chain
             foreach ($route['middleware'] as $mw) {
-                (new $mw())->handle($request);
+                if (is_string($mw)) {
+                    $mwInstance = new $mw();
+                } else {
+                    $mwInstance = $mw;
+                }
+                $mwInstance->handle($request);
             }
 
             // Call handler
